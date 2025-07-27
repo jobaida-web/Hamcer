@@ -5,6 +5,10 @@ import { onAuthStateChanged, signOut } from 'firebase/auth'
 import Home from './components/Home'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
+import Services from './components/Services'
+import ServiceDetail from './components/ServiceDetail'
+import Profile from './components/Profile'
+import CreateService from './components/CreateService'
 import './App.css'
 
 function App() {
@@ -49,16 +53,25 @@ function App() {
               <Link to="/" className="nav-link">
                 Home
               </Link>
+              <Link to="/services" className="nav-link">
+                Browse Services
+              </Link>
               {user ? (
                 <>
                   <Link to="/dashboard" className="nav-link">
                     Dashboard
                   </Link>
+                  <Link to="/create-service" className="nav-link">
+                    Sell Services
+                  </Link>
+                  <Link to="/profile" className="nav-link">
+                    Profile
+                  </Link>
                   <button onClick={handleSignOut} className="nav-button">
                     Sign Out
                   </button>
                   <span className="user-info">
-                    Welcome, {user.email}
+                    Welcome, {user.displayName || user.email}
                   </span>
                 </>
               ) : (
@@ -73,10 +86,20 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/service/:id" element={<ServiceDetail />} />
             <Route path="/login" element={<Login />} />
             <Route 
               path="/dashboard" 
               element={user ? <Dashboard /> : <Login />} 
+            />
+            <Route 
+              path="/profile" 
+              element={user ? <Profile /> : <Login />} 
+            />
+            <Route 
+              path="/create-service" 
+              element={user ? <CreateService /> : <Login />} 
             />
           </Routes>
         </main>

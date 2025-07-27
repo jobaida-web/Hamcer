@@ -1,225 +1,339 @@
 import { useState, useEffect } from 'react'
-import { auth, db, storage } from '../firebase'
+import { Link } from 'react-router-dom'
+import { auth, db } from '../firebase'
 import { 
   collection, 
-  addDoc, 
+  query,
+  where,
   onSnapshot, 
   deleteDoc, 
   doc, 
   updateDoc,
-  serverTimestamp 
+  orderBy
 } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { useAuthState } from 'react-firebase-hooks/auth'
 
 function Dashboard() {
-  const [items, setItems] = useState([])
-  const [newItem, setNewItem] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [file, setFile] = useState(null)
-  const [uploadProgress, setUploadProgress] = useState('')
+  const [user] = useAuthState(auth)
+  const [activeTab, setActiveTab] = useState('overview')
+  const [services, setServices] = useState([])
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    totalEarnings: 0,
+    activeServices: 0,
+    completedOrders: 0,
+    pendingOrders: 0
+  })
 
   useEffect(() => {
-    if (!auth.currentUser) return
+    if (!user) return
 
-    const unsubscribe = onSnapshot(
-      collection(db, 'items'),
-      (snapshot) => {
-        const itemsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        setItems(itemsData.sort((a, b) => b.createdAt?.seconds - a.createdAt?.seconds))
-      },
-      (error) => {
-        console.error('Error fetching items:', error)
+    // For demo purposes, we'll use sample data since we don't have real orders yet
+    const sampleServices = [
+      {
+        id: 'sample1',
+        title: 'Professional Medical Research Paper Writing',
+        description: 'I will write comprehensive medical research papers with proper citations and methodology.',
+        category: 'Research Papers',
+        status: 'active',
+        packages: { basic: { price: 150 } },
+        createdAt: new Date()
       }
+    ]
+
+    const sampleOrders = [
+      {
+        id: 'order1',
+        sellerId: user.uid,
+        buyerId: 'buyer1',
+        packageDetails: { name: 'Basic Research Paper' },
+        totalAmount: 150,
+        status: 'completed',
+        createdAt: { toDate: () => new Date() }
+      }
+    ]
+
+    setServices(sampleServices)
+    setOrders(sampleOrders)
+    setStats({
+      totalEarnings: 150,
+      activeServices: 1,
+      completedOrders: 1,
+      pendingOrders: 0
+    })
+    setLoading(false)
+
+    // Real Firebase queries would go here
+    // const servicesQuery = query(
+    //   collection(db, 'services'),
+    //   where('sellerId', '==', user.uid),
+    //   orderBy('createdAt', 'desc')
+    // )
+    // const unsubscribeServices = onSnapshot(servicesQuery, (snapshot) => {
+    //   const servicesData = snapshot.docs.map(doc => ({
+    //     id: doc.id,
+    //     ...doc.data()
+    //   }))
+    //   setServices(servicesData)
+    // })
+
+  }, [user])
+
+  const deleteService = async (serviceId) => {
+    if (window.confirm('Are you sure you want to delete this service?')) {
+      try {
+        await deleteDoc(doc(db, 'services', serviceId))
+        alert('Service deleted successfully!')
+      } catch (error) {
+        console.error('Error deleting service:', error)
+        alert('Error deleting service. Please try again.')
+      }
+    }
+  }
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: newStatus,
+        updatedAt: new Date()
+      })
+      alert('Order status updated successfully!')
+    } catch (error) {
+      console.error('Error updating order:', error)
+      alert('Error updating order status. Please try again.')
+    }
+  }
+
+  if (!user) {
+    return <div>Please login to access your dashboard.</div>
+  }
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+        <p>Loading dashboard...</p>
+      </div>
     )
-
-    return () => unsubscribe()
-  }, [])
-
-  const addItem = async (e) => {
-    e.preventDefault()
-    if (!newItem.trim()) return
-
-    setLoading(true)
-    try {
-      await addDoc(collection(db, 'items'), {
-        text: newItem,
-        userId: auth.currentUser.uid,
-        userEmail: auth.currentUser.email,
-        createdAt: serverTimestamp(),
-        completed: false
-      })
-      setNewItem('')
-    } catch (error) {
-      console.error('Error adding item:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const deleteItem = async (id) => {
-    try {
-      await deleteDoc(doc(db, 'items', id))
-    } catch (error) {
-      console.error('Error deleting item:', error)
-    }
-  }
-
-  const toggleComplete = async (id, completed) => {
-    try {
-      await updateDoc(doc(db, 'items', id), {
-        completed: !completed
-      })
-    } catch (error) {
-      console.error('Error updating item:', error)
-    }
-  }
-
-  const handleFileUpload = async (e) => {
-    e.preventDefault()
-    if (!file) return
-
-    setUploadProgress('Uploading...')
-    try {
-      const storageRef = ref(storage, `uploads/${auth.currentUser.uid}/${file.name}`)
-      const snapshot = await uploadBytes(storageRef, file)
-      const downloadURL = await getDownloadURL(snapshot.ref)
-      
-      await addDoc(collection(db, 'items'), {
-        text: `File uploaded: ${file.name}`,
-        fileUrl: downloadURL,
-        fileName: file.name,
-        userId: auth.currentUser.uid,
-        userEmail: auth.currentUser.email,
-        createdAt: serverTimestamp(),
-        completed: false
-      })
-      
-      setFile(null)
-      setUploadProgress('Upload successful!')
-      setTimeout(() => setUploadProgress(''), 3000)
-    } catch (error) {
-      console.error('Error uploading file:', error)
-      setUploadProgress('Upload failed!')
-      setTimeout(() => setUploadProgress(''), 3000)
-    }
   }
 
   return (
     <div className="dashboard">
-      <h1>Dashboard</h1>
-      <p>Welcome, {auth.currentUser?.email}!</p>
+      <div className="container">
+        <div className="dashboard-header">
+          <h1>Dashboard</h1>
+          <p>Welcome back, {user.displayName || user.email}!</p>
+        </div>
 
-      <div className="card">
-        <h3>Add New Item</h3>
-        <form onSubmit={addItem}>
-          <div className="form-group">
-            <input
-              type="text"
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
-              placeholder="Enter a new item..."
-              disabled={loading}
-            />
-          </div>
-          <button type="submit" className="btn" disabled={loading || !newItem.trim()}>
-            {loading ? 'Adding...' : 'Add Item'}
-          </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <h3>File Upload</h3>
-        <form onSubmit={handleFileUpload}>
-          <div className="form-group">
-            <input
-              type="file"
-              onChange={(e) => setFile(e.target.files[0])}
-              accept="image/*,.pdf,.doc,.docx,.txt"
-            />
-          </div>
-          <button type="submit" className="btn" disabled={!file}>
-            Upload File
-          </button>
-          {uploadProgress && (
-            <div className={uploadProgress.includes('successful') ? 'success' : uploadProgress.includes('failed') ? 'error' : ''}>
-              {uploadProgress}
+        {/* Stats Cards */}
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-icon">💰</div>
+            <div className="stat-content">
+              <h3>${stats.totalEarnings}</h3>
+              <p>Total Earnings</p>
             </div>
-          )}
-        </form>
-      </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">🛍️</div>
+            <div className="stat-content">
+              <h3>{stats.activeServices}</h3>
+              <p>Active Services</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">✅</div>
+            <div className="stat-content">
+              <h3>{stats.completedOrders}</h3>
+              <p>Completed Orders</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">⏳</div>
+            <div className="stat-content">
+              <h3>{stats.pendingOrders}</h3>
+              <p>Pending Orders</p>
+            </div>
+          </div>
+        </div>
 
-      <div className="card">
-        <h3>Your Items ({items.length})</h3>
-        {items.length === 0 ? (
-          <p>No items yet. Add some items above!</p>
-        ) : (
-          <div className="items-list">
-            {items.map((item) => (
-              <div 
-                key={item.id} 
-                className="item"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '1rem',
-                  margin: '0.5rem 0',
-                  backgroundColor: item.completed ? 'rgba(81, 207, 102, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '4px',
-                  textDecoration: item.completed ? 'line-through' : 'none'
-                }}
-              >
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <p style={{ margin: '0 0 0.5rem 0' }}>{item.text}</p>
-                  {item.fileUrl && (
-                    <a 
-                      href={item.fileUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ fontSize: '0.8rem', color: '#646cff' }}
-                    >
-                      📎 {item.fileName}
-                    </a>
-                  )}
-                  <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem' }}>
-                    {item.createdAt?.toDate?.()?.toLocaleString() || 'Just now'}
-                  </div>
-                </div>
-                <div>
-                  <button
-                    onClick={() => toggleComplete(item.id, item.completed)}
-                    className="btn"
-                    style={{ 
-                      marginRight: '0.5rem',
-                      backgroundColor: item.completed ? '#51cf66' : '#ffd43b',
-                      color: '#000'
-                    }}
-                  >
-                    {item.completed ? '✓' : '○'}
-                  </button>
-                  <button
-                    onClick={() => deleteItem(item.id)}
-                    className="btn"
-                    style={{ backgroundColor: '#ff6b6b' }}
-                  >
-                    Delete
-                  </button>
+        {/* Navigation Tabs */}
+        <div className="dashboard-tabs">
+          <button 
+            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`tab ${activeTab === 'services' ? 'active' : ''}`}
+            onClick={() => setActiveTab('services')}
+          >
+            My Services
+          </button>
+          <button 
+            className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
+            onClick={() => setActiveTab('orders')}
+          >
+            Orders
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        <div className="dashboard-content">
+          {activeTab === 'overview' && (
+            <div className="overview-tab">
+              <div className="quick-actions">
+                <h2>Quick Actions</h2>
+                <div className="action-buttons">
+                  <Link to="/create-service" className="btn btn-primary">
+                    Create New Service
+                  </Link>
+                  <Link to="/profile" className="btn btn-secondary">
+                    Update Profile
+                  </Link>
+                  <Link to="/services" className="btn btn-outline">
+                    Browse Services
+                  </Link>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      <div className="card">
-        <h3>Firebase Services Status</h3>
-        <div style={{ textAlign: 'left' }}>
-          <p>✅ Authentication: Connected ({auth.currentUser?.email})</p>
-          <p>🔄 Firestore: {items.length > 0 ? 'Connected' : 'Waiting for data...'}</p>
-          <p>☁️ Storage: Ready for file uploads</p>
+              <div className="recent-activity">
+                <h2>Recent Activity</h2>
+                {orders.slice(0, 5).length > 0 ? (
+                  <div className="activity-list">
+                    {orders.slice(0, 5).map(order => (
+                      <div key={order.id} className="activity-item">
+                        <div className="activity-icon">
+                          {order.status === 'completed' ? '✅' : 
+                           order.status === 'in-progress' ? '🔄' : '⏳'}
+                        </div>
+                        <div className="activity-content">
+                          <p>
+                            {order.sellerId === user.uid ? 'Order received' : 'Order placed'}: 
+                            {order.packageDetails?.name || 'Service order'}
+                          </p>
+                          <small>{new Date(order.createdAt?.toDate()).toLocaleDateString()}</small>
+                        </div>
+                        <div className="activity-amount">
+                          ${order.totalAmount}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>No recent activity. Start by creating your first service!</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'services' && (
+            <div className="services-tab">
+              <div className="tab-header">
+                <h2>My Services</h2>
+                <Link to="/create-service" className="btn btn-primary">
+                  Create New Service
+                </Link>
+              </div>
+
+              {services.length > 0 ? (
+                <div className="services-list">
+                  {services.map(service => (
+                    <div key={service.id} className="service-item">
+                      <div className="service-info">
+                        <h3>{service.title}</h3>
+                        <p>{service.description.substring(0, 100)}...</p>
+                        <div className="service-meta">
+                          <span className="category">{service.category}</span>
+                          <span className="price">From ${service.packages?.basic?.price}</span>
+                          <span className={`status ${service.status}`}>{service.status}</span>
+                        </div>
+                      </div>
+                      <div className="service-actions">
+                        <Link to={`/service/${service.id}`} className="btn btn-sm btn-outline">
+                          View
+                        </Link>
+                        <button 
+                          onClick={() => deleteService(service.id)}
+                          className="btn btn-sm btn-danger"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <h3>No services yet</h3>
+                  <p>Create your first service to start earning!</p>
+                  <Link to="/create-service" className="btn btn-primary">
+                    Create Service
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'orders' && (
+            <div className="orders-tab">
+              <h2>Orders</h2>
+
+              {orders.length > 0 ? (
+                <div className="orders-list">
+                  {orders.map(order => (
+                    <div key={order.id} className="order-item">
+                      <div className="order-info">
+                        <h3>{order.packageDetails?.name || 'Service Order'}</h3>
+                        <p>
+                          {order.sellerId === user.uid ? 'Buyer' : 'Seller'}: 
+                          {order.sellerId === user.uid ? order.buyerEmail : order.sellerEmail}
+                        </p>
+                        <div className="order-meta">
+                          <span className="order-date">
+                            {new Date(order.createdAt?.toDate()).toLocaleDateString()}
+                          </span>
+                          <span className="order-amount">${order.totalAmount}</span>
+                          <span className={`order-status ${order.status}`}>
+                            {order.status}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {order.sellerId === user.uid && order.status === 'pending' && (
+                        <div className="order-actions">
+                          <button 
+                            onClick={() => updateOrderStatus(order.id, 'in-progress')}
+                            className="btn btn-sm btn-primary"
+                          >
+                            Accept Order
+                          </button>
+                        </div>
+                      )}
+                      
+                      {order.sellerId === user.uid && order.status === 'in-progress' && (
+                        <div className="order-actions">
+                          <button 
+                            onClick={() => updateOrderStatus(order.id, 'completed')}
+                            className="btn btn-sm btn-success"
+                          >
+                            Mark Complete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <h3>No orders yet</h3>
+                  <p>Orders will appear here when customers purchase your services.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
