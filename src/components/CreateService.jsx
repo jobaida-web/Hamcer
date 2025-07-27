@@ -54,10 +54,14 @@ function CreateService() {
         title: formData.title,
         description: formData.description,
         category: formData.category,
-        tags: formData.tags.split(',').map(tag => tag.trim()),
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         sellerId: user.uid,
         sellerName: user.displayName || user.email,
         sellerEmail: user.email,
+        sellerAvatar: '👤', // Default avatar
+        sellerLevel: 'New Seller',
+        sellerBio: '',
+        responseTime: 'Within 24 hours',
         packages: {
           basic: {
             name: 'Basic Package',
@@ -81,7 +85,9 @@ function CreateService() {
         status: 'active',
         createdAt: new Date(),
         rating: 0,
-        reviewCount: 0
+        reviewCount: 0,
+        reviews: [],
+        faq: []
       }
 
       const docRef = await addDoc(collection(db, 'services'), serviceData)

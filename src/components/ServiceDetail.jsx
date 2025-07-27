@@ -12,6 +12,18 @@ function ServiceDetail() {
   const [selectedPackage, setSelectedPackage] = useState('basic')
   const [orderLoading, setOrderLoading] = useState(false)
 
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'Research Papers': '📄',
+      'Health Articles': '🏥',
+      'Medical Journals': '📚',
+      'Public Health': '🌍',
+      'Content Writing': '✍️',
+      'Blog Writing': '📝'
+    }
+    return icons[category] || '📄'
+  }
+
   useEffect(() => {
     fetchService()
   }, [id])
@@ -22,108 +34,11 @@ function ServiceDetail() {
       if (serviceDoc.exists()) {
         setService({ id: serviceDoc.id, ...serviceDoc.data() })
       } else {
-        // Demo data for the service
-        setService({
-          id: id,
-          title: 'Professional Medical Research Paper Writing',
-          description: 'I will write comprehensive medical research papers with proper citations and methodology. With over 10 years of experience in medical research and academic writing, I provide high-quality, well-researched papers that meet academic standards.',
-          category: 'Research Papers',
-          seller: {
-            name: 'Dr. Sarah Johnson',
-            avatar: '👩‍⚕️',
-            level: 'Top Rated',
-            rating: 4.9,
-            reviewCount: 127,
-            memberSince: 'March 2020',
-            responseTime: '1 hour',
-            bio: 'Medical researcher and academic writer with PhD in Public Health. Specialized in epidemiology, health policy, and clinical research methodology.'
-          },
-          packages: {
-            basic: {
-              name: 'Basic Research Paper',
-              price: 150,
-              deliveryTime: '7 days',
-              features: [
-                '5-10 pages research paper',
-                'Basic literature review',
-                '10+ academic references',
-                '1 revision included',
-                'APA/MLA formatting'
-              ]
-            },
-            standard: {
-              name: 'Standard Research Paper',
-              price: 250,
-              deliveryTime: '10 days',
-              features: [
-                '10-20 pages research paper',
-                'Comprehensive literature review',
-                '20+ academic references',
-                '3 revisions included',
-                'APA/MLA formatting',
-                'Statistical analysis',
-                'Abstract and keywords'
-              ]
-            },
-            premium: {
-              name: 'Premium Research Paper',
-              price: 400,
-              deliveryTime: '14 days',
-              features: [
-                '20+ pages research paper',
-                'Extensive literature review',
-                '30+ academic references',
-                'Unlimited revisions',
-                'APA/MLA formatting',
-                'Advanced statistical analysis',
-                'Abstract and keywords',
-                'Publication consultation',
-                'Plagiarism report'
-              ]
-            }
-          },
-          gallery: ['📄', '📊', '📈', '🔬'],
-          reviews: [
-            {
-              id: 1,
-              user: 'Dr. Michael Brown',
-              rating: 5,
-              comment: 'Exceptional work! The research paper was well-structured and thoroughly researched. Highly recommend!',
-              date: '2 weeks ago'
-            },
-            {
-              id: 2,
-              user: 'Prof. Lisa Chen',
-              rating: 5,
-              comment: 'Outstanding quality and delivered on time. Will definitely work with Dr. Johnson again.',
-              date: '1 month ago'
-            },
-            {
-              id: 3,
-              user: 'Research Student',
-              rating: 4,
-              comment: 'Great work overall. Very professional and responsive to feedback.',
-              date: '2 months ago'
-            }
-          ],
-          faq: [
-            {
-              question: 'What citation style do you use?',
-              answer: 'I can work with any citation style including APA, MLA, Chicago, Harvard, and Vancouver. Please specify your preferred style when placing the order.'
-            },
-            {
-              question: 'Do you provide plagiarism reports?',
-              answer: 'Yes, I provide plagiarism reports with the Premium package. For Basic and Standard packages, it can be added for an additional $15.'
-            },
-            {
-              question: 'Can you help with journal submission?',
-              answer: 'Absolutely! I can help format your paper according to specific journal requirements and provide guidance on the submission process.'
-            }
-          ]
-        })
+        setService(null) // Service not found
       }
     } catch (error) {
       console.error('Error fetching service:', error)
+      setService(null)
     } finally {
       setLoading(false)
     }
@@ -170,13 +85,28 @@ function ServiceDetail() {
   if (!service) {
     return (
       <div className="error">
-        <h2>Service not found</h2>
-        <Link to="/services">← Back to Services</Link>
+        <div className="container">
+          <h2>Service not found</h2>
+          <p>The service you're looking for doesn't exist or has been removed.</p>
+          <Link to="/services" className="btn btn-primary">← Back to Services</Link>
+        </div>
       </div>
     )
   }
 
-  const currentPackage = service.packages[selectedPackage]
+  const currentPackage = service.packages?.[selectedPackage]
+  
+  if (!currentPackage) {
+    return (
+      <div className="error">
+        <div className="container">
+          <h2>Service data incomplete</h2>
+          <p>This service doesn't have proper package information.</p>
+          <Link to="/services" className="btn btn-primary">← Back to Services</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="service-detail">
@@ -189,27 +119,28 @@ function ServiceDetail() {
           <div className="service-main">
             <div className="service-gallery">
               <div className="gallery-main">
-                <span className="gallery-icon">{service.gallery?.[0] || '📄'}</span>
+                <span className="gallery-icon">{getCategoryIcon(service.category)}</span>
               </div>
               <div className="gallery-thumbs">
-                {service.gallery?.map((icon, index) => (
-                  <span key={index} className="gallery-thumb">{icon}</span>
-                ))}
+                <span className="gallery-thumb">{getCategoryIcon(service.category)}</span>
+                <span className="gallery-thumb">📊</span>
+                <span className="gallery-thumb">📈</span>
+                <span className="gallery-thumb">🔬</span>
               </div>
             </div>
 
             <div className="service-info">
               <div className="seller-info">
-                <span className="seller-avatar">{service.seller.avatar}</span>
+                <span className="seller-avatar">{service.sellerAvatar || '👤'}</span>
                 <div className="seller-details">
-                  <h4>{service.seller.name}</h4>
-                  <span className={`seller-level ${service.seller.level.toLowerCase().replace(' ', '-')}`}>
-                    {service.seller.level}
+                  <h4>{service.sellerName || 'Anonymous Seller'}</h4>
+                  <span className={`seller-level ${(service.sellerLevel || 'new').toLowerCase().replace(' ', '-')}`}>
+                    {service.sellerLevel || 'New Seller'}
                   </span>
                   <div className="seller-rating">
                     <span className="rating-stars">⭐</span>
-                    <span>{service.seller.rating}</span>
-                    <span>({service.seller.reviewCount} reviews)</span>
+                    <span>{service.rating || 0}</span>
+                    <span>({service.reviewCount || 0} reviews)</span>
                   </div>
                 </div>
               </div>
@@ -221,42 +152,48 @@ function ServiceDetail() {
                 <div className="tab-content">
                   <div className="seller-about">
                     <h3>About the Seller</h3>
-                    <p>{service.seller.bio}</p>
+                    <p>{service.sellerBio || 'No bio available for this seller.'}</p>
                     <div className="seller-stats">
                       <div className="stat">
-                        <strong>Member since:</strong> {service.seller.memberSince}
+                        <strong>Member since:</strong> {service.createdAt ? new Date(service.createdAt.toDate()).toLocaleDateString() : 'Recently joined'}
                       </div>
                       <div className="stat">
-                        <strong>Response time:</strong> {service.seller.responseTime}
+                        <strong>Response time:</strong> {service.responseTime || 'Within 24 hours'}
                       </div>
                     </div>
                   </div>
 
-                  <div className="service-faq">
-                    <h3>Frequently Asked Questions</h3>
-                    {service.faq.map((item, index) => (
-                      <div key={index} className="faq-item">
-                        <h4>{item.question}</h4>
-                        <p>{item.answer}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {service.faq && service.faq.length > 0 && (
+                    <div className="service-faq">
+                      <h3>Frequently Asked Questions</h3>
+                      {service.faq.map((item, index) => (
+                        <div key={index} className="faq-item">
+                          <h4>{item.question}</h4>
+                          <p>{item.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="service-reviews">
-                    <h3>Reviews ({service.reviews.length})</h3>
-                    {service.reviews.map(review => (
-                      <div key={review.id} className="review">
-                        <div className="review-header">
-                          <strong>{review.user}</strong>
-                          <div className="review-rating">
-                            <span className="rating-stars">⭐</span>
-                            <span>{review.rating}</span>
+                    <h3>Reviews ({service.reviews?.length || 0})</h3>
+                    {service.reviews && service.reviews.length > 0 ? (
+                      service.reviews.map(review => (
+                        <div key={review.id} className="review">
+                          <div className="review-header">
+                            <strong>{review.user}</strong>
+                            <div className="review-rating">
+                              <span className="rating-stars">⭐</span>
+                              <span>{review.rating}</span>
+                            </div>
+                            <span className="review-date">{review.date}</span>
                           </div>
-                          <span className="review-date">{review.date}</span>
+                          <p>{review.comment}</p>
                         </div>
-                        <p>{review.comment}</p>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <p>No reviews yet. Be the first to review this service!</p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -29,55 +29,64 @@ function Dashboard() {
   useEffect(() => {
     if (!user) return
 
-    // For demo purposes, we'll use sample data since we don't have real orders yet
-    const sampleServices = [
-      {
-        id: 'sample1',
-        title: 'Professional Medical Research Paper Writing',
-        description: 'I will write comprehensive medical research papers with proper citations and methodology.',
-        category: 'Research Papers',
-        status: 'active',
-        packages: { basic: { price: 150 } },
-        createdAt: new Date()
-      }
-    ]
+    // Fetch user's services
+    const servicesQuery = query(
+      collection(db, 'services'),
+      where('sellerId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    )
 
-    const sampleOrders = [
-      {
-        id: 'order1',
-        sellerId: user.uid,
-        buyerId: 'buyer1',
-        packageDetails: { name: 'Basic Research Paper' },
-        totalAmount: 150,
-        status: 'completed',
-        createdAt: { toDate: () => new Date() }
-      }
-    ]
-
-    setServices(sampleServices)
-    setOrders(sampleOrders)
-    setStats({
-      totalEarnings: 150,
-      activeServices: 1,
-      completedOrders: 1,
-      pendingOrders: 0
+    const unsubscribeServices = onSnapshot(servicesQuery, (snapshot) => {
+      const servicesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      setServices(servicesData)
+      setStats(prev => ({ ...prev, activeServices: servicesData.length }))
+    }, (error) => {
+      console.error('Error fetching services:', error)
+      setServices([])
     })
-    setLoading(false)
 
-    // Real Firebase queries would go here
-    // const servicesQuery = query(
-    //   collection(db, 'services'),
-    //   where('sellerId', '==', user.uid),
-    //   orderBy('createdAt', 'desc')
-    // )
-    // const unsubscribeServices = onSnapshot(servicesQuery, (snapshot) => {
-    //   const servicesData = snapshot.docs.map(doc => ({
-    //     id: doc.id,
-    //     ...doc.data()
-    //   }))
-    //   setServices(servicesData)
-    // })
+    // Fetch user's orders (both as buyer and seller)
+    const ordersQuery = query(
+      collection(db, 'orders'),
+      orderBy('createdAt', 'desc')
+    )
 
+    const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).filter(order => order.sellerId === user.uid || order.buyerId === user.uid)
+      
+      setOrders(ordersData)
+      
+      // Calculate stats
+      const completed = ordersData.filter(order => order.status === 'completed')
+      const pending = ordersData.filter(order => order.status === 'pending' || order.status === 'in-progress')
+      const earnings = completed
+        .filter(order => order.sellerId === user.uid)
+        .reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+
+      setStats(prev => ({
+        ...prev,
+        completedOrders: completed.length,
+        pendingOrders: pending.length,
+        totalEarnings: earnings
+      }))
+      
+      setLoading(false)
+    }, (error) => {
+      console.error('Error fetching orders:', error)
+      setOrders([])
+      setLoading(false)
+    })
+
+    return () => {
+      unsubscribeServices()
+      unsubscribeOrders()
+    }
   }, [user])
 
   const deleteService = async (serviceId) => {
